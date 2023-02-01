@@ -10,6 +10,6 @@ Edit the sls file and watch the magic happen! A documentation is not yet made, s
 
 # NOTICE
 
-This language right now is just a days old, so it does not yet include crucial things like MATH, stay tuned, I plan on adding these really soon.
+This language right now is just a few days old, so it does not yet include crucial things like MATH, stay tuned, I plan on adding these really soon.
 
 This is open source because I do not care if anyone can edit, this project is made for me to practise C++.
