@@ -1,2 +1,2 @@
 * linguist-vendored
-*.sls linguist-vendored=false
+*.sls linguist-vendored=true
