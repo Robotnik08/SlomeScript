@@ -10,6 +10,22 @@ Edit the sls file and watch the magic happen! A documentation is not yet made, s
 
 # NOTICE
 
-This language right now is just a few days old, so it does not yet include crucial things like MATH, stay tuned, I plan on adding these really soon.
+This language right now is just a few days old, so it does not yet include crucial things like ARRAYS, stay tuned, I plan on adding these really soon.
 
-This is open source because I do not care if anyone can edit, this project is made for me to practise C++.
+Features
+DO:
+  SAY: logs to console
+  SET: sets a variable (also includes math)
+  [function name]: executes a function
+MAKE:
+  INT, DOUBLE, NUMBER, STRING, BOOL: make a variable
+SKIP:
+  TO [location_name]: start reading from the location specified
+    UNLESS/WHEN: only skip if condition is true (conditions are incased by @)
+  LOCATION [location_name]: sets a point for a skip to skip to, skips can also skip backwards (allowing for loops etc) 
+DEFINE:
+  FUNC: define a function (ENDFUNC to end a function)
+
+This language does not like spaces! any parameters like logical operations are done like this @val==othervall||val>largeval@
+I am gonna write some sort of documentation in the future!
+This is open source because I do not care if anyone can edit, this project is made for me to practise c++.
