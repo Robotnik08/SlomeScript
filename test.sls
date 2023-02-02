@@ -1,0 +1,11 @@
+MAKE STRING coolNumber "hello";
+MAKE NUMBER coolDouble 0;
+MAKE BOOL isCool true;
+MAKE BOOL isEpic true;
+MAKE NUMBER i 210;
+MAKE NUMBER loopEndTreshHold 10;
+SKIP LOCATION loop;
+DO SAY i;
+DO SAY "\n";
+DO SET i :i*0.5:;
+SKIP TO "loop" WHEN @i>loopEndTreshHold@;

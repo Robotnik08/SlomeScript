@@ -21,6 +21,7 @@ using namespace std;
 #define TYPE_MISMATCH 11
 #define BOOL_OPERATIONS_ERROR 12
 #define ONLY_VAR_NAMES_ACCEPTED 13
+#define VAR_MUST_BE_NUMBER 14
 const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "Too many arguments at line: ",
                                  "Empty at line: ",
@@ -29,11 +30,12 @@ const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "Variables can only include letters, at line: ",
                                  "Variable not found at: ",
                                  "Double not valid (Too big, or invalid input) at line: ",
-                                 "Skip Location was not found at line: ",
                                  "Value must be either \"true\" or \"false\" at line: ",
+                                 "Skip Location was not found at line: ",
                                  "Arguments must be of the same type at line: ",
                                  "Incorrect comparison operator for boolean at line: ",
-                                 "Only variables are allowed or variable name not found in bool parsing at line: "
+                                 "Only variables are allowed or variable name not found in bool parsing at line: ",
+                                 "Variable must be a number at line: "
                                 };
 
 #define VAL_INTERGER 0
@@ -367,6 +369,74 @@ bool getBooleanFromString (string str) {
     }
     return true;
 }
+vector<string> splitStringMultiple (string content, string del1, string del2) {
+    vector<string> res; 
+
+    size_t pos = 0;
+    string t;
+    while (content.find(del1) != string::npos || content.find(del2) != string::npos) {
+        pos = min(content.find(del1) != string::npos ? content.find(del1) : INT32_MAX, content.find(del2) != string::npos ? content.find(del2) : INT32_MAX);
+        t = content.substr(0, pos);
+        res.push_back(t);
+        content.erase(0, pos + 1);
+    }
+    res.push_back(content);
+    return res;
+
+}
+double returnMath (string str) {
+    str = trimString(str);
+    vector<string> finalOperations = splitStringMultiple(str, "-", "+");
+    double finalResult = 0;
+    int operatorindexMain = 0;
+    for (int i = 0; i < finalOperations.size(); i++) {
+        double result;
+        int operatorindex = 0;
+        vector<string> multi = splitStringMultiple(finalOperations[i], "*", "/");
+        for (int j = 0; j < multi.size(); j++) {
+            if (checkIfAlphaBetic(multi[j])) {
+                token* val = lookupVar(multi[j]);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, reader);  
+                } else {
+                    if (!j) {
+                        if (!((val->type ^ VAL_INTERGER))) {
+                            result = val->returnInt();
+                        } else if (!(val->type ^ VAL_DOUBLE)) {
+                            result = val->returnDouble();
+                        } else {
+                            throwError(VAR_MUST_BE_NUMBER, reader);
+                        }
+                    } else {
+                        if (!((val->type ^ VAL_INTERGER))) {
+                            result = finalOperations[i][operatorindex] == '*' ? result * val->returnInt() : result / val->returnInt();
+                        } else if (!(val->type ^ VAL_DOUBLE)) {
+                            result = finalOperations[i][operatorindex] == '*' ? result * val->returnDouble() : result / val->returnDouble();
+                        } else {
+                            throwError(TYPE_MISMATCH, reader);
+                        }
+                    }
+                }
+            } else if (checkIfdouble(multi[j])) {
+                if (!j) {
+                    result = stod(multi[j]);
+                } else {
+                    result = finalOperations[i][operatorindex] == '*' ? result * stod(multi[j]) : result / stod(multi[j]);
+                }
+            } else {
+                throwError(VAR_NOT_FOUND, reader);
+            }
+            operatorindex += multi[j].size();
+        }
+        if (!i) {
+            finalResult = result;
+        } else {
+            finalResult = finalOperations[i][operatorindexMain] == '+' ? finalResult + result : finalResult - result;
+        }
+        operatorindexMain += finalOperations[i].size();
+    }
+    return finalResult;
+}
 void parseLine (string l, int location) {
     vector<string> script = splitString(l, " ");
     if (!script.size()) {
@@ -400,6 +470,72 @@ void parseLine (string l, int location) {
                 throwError(TOO_MANY_ARGS, location);
             }
             system("PAUSE");
+        } else if (script[1] == "SET") {
+            if (script.size() > 4) {
+                throwError(TOO_MANY_ARGS, location);
+            }
+            if (checkIfAlphaBetic(script[2])) {
+                token* val = lookupVar(script[2]);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, location);
+                } else if (!(val->type ^ VAL_INTERGER)) {
+                    if (checkIfSurroundedBy(script[3], ':')) {
+                        if (checkIfInt(script[3])) {
+                            if (strOverflow(script[3])) {
+                                throwError(INT32_OVERFLOW, location);
+                            }
+                        } else {
+                            *val->Vint = returnMath(script[3]);
+                        }
+                    } else if (checkIfAlphaBetic(script[3])) {
+                        token* val1 = lookupVar(script[3]);
+                        if (!val1) {
+                            throwError(VAR_NOT_FOUND, location);
+                        }
+                        *val->Vint = val1->returnInt();
+                    } else {
+                        throwError(VAR_NOT_FOUND, location);
+                    }
+                } else if (!(val->type ^ VAL_DOUBLE)) {
+                    if (checkIfSurroundedBy(script[3], ':')) {
+                        if (checkIfInt(script[3])) {
+                            if (strOverflow(script[3])) {
+                                throwError(INT32_OVERFLOW, location);
+                            }
+                        } else {
+                            *val->Vdouble = returnMath(script[3]);
+                        }
+                    } else if (checkIfAlphaBetic(script[3])) {
+                        token* val1 = lookupVar(script[3]);
+                        if (!val1) {
+                            throwError(VAR_NOT_FOUND, location);
+                        }
+                        *val->Vdouble = val1->returnDouble();
+                    } else {
+                        throwError(VAR_NOT_FOUND, location);
+                    }
+                } else if (!(val->type ^ VAL_STRING)) {
+                    if (checkIfAlphaBetic(script[3])) {
+                        token* val1 = lookupVar(script[3]);
+                        if (!val1) {
+                            throwError(VAR_NOT_FOUND, location);
+                        }
+                        *val->Vstring = val1->returnString();
+                    } else {
+                        throwError(VAR_NOT_FOUND, location);
+                    }
+                } else if (!(val->type ^ VAL_BOOL)) {
+                    if (checkIfSurroundedBy(script[2], '@')) {
+                        *val->Vstring = getBooleanFromString(trimString(script[2]));
+                    }
+                    cout << (val->returnBool() ? "true" : "false");
+                }
+                if (checkIfSurroundedBy(script[3], '"')) {
+                    cout << prepareLog(trimString(script[3]));
+                }
+            } else {
+                throwError(VAR_NOT_FOUND, location);
+            }
         } else {
             throwError(SYNTAX_ERROR, location);
         }
@@ -422,7 +558,7 @@ void parseLine (string l, int location) {
             } else {
                 throwError(INVALID_VARIABLE_NAME, location);
             }
-        } else if (script[1] == "DOUBLE") {
+        } else if (script[1] == "DOUBLE" || script[1] == "NUMBER") {
             if (script.size() > 4) {
                 throwError(TOO_MANY_ARGS, location);
             }
@@ -479,7 +615,6 @@ void parseLine (string l, int location) {
                             } else {
                                 throwError(SYNTAX_ERROR, location);
                             }
-                            return;
                         } else if (script[3] == "UNLESS") {
                             if (checkIfSurroundedBy(script[4], '@')) {
                                 if (!getBooleanFromString(trimString(script[4]))) {
@@ -516,7 +651,7 @@ void parseLine (string l, int location) {
 }
 int main() {
     string content;
-    ifstream file("main.sls");
+    ifstream file("test.sls");
     string line;
 
     while (getline (file, line)) {
