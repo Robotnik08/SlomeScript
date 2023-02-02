@@ -14,17 +14,17 @@ This language right now is just a few days old, so it does not yet include cruci
 <code>
 Features
 DO:
-  SAY: logs to console
-  SET: sets a variable (also includes math)
-  [function name]: executes a function
+  &ensp;SAY: logs to console
+  &ensp;SET: sets a variable (also includes math)
+  &ensp;[function name]: executes a function
 MAKE:
-  INT, DOUBLE, NUMBER, STRING, BOOL: make a variable
+  &ensp;INT, DOUBLE, NUMBER, STRING, BOOL: make a variable
 SKIP:
-  TO [location_name]: start reading from the location specified
-    UNLESS/WHEN: only skip if condition is true (conditions are incased by @)
-  LOCATION [location_name]: sets a point for a skip to skip to, skips can also skip backwards (allowing for loops etc) 
+  &ensp;TO [location_name]: start reading from the location specified
+    &ensp;UNLESS/WHEN: only skip if condition is true (conditions are incased by @)
+  &ensp;LOCATION [location_name]: sets a point for a skip to skip to, skips can also skip backwards (allowing for loops etc) 
 DEFINE:
-  FUNC: define a function (ENDFUNC to end a function)
+  &ensp;FUNC: define a function (ENDFUNC to end a function)
 </code>
 This language does not like spaces! any parameters like logical operations are done like this @val==othervall||val>largeval@
 I am gonna write some sort of documentation in the future!
