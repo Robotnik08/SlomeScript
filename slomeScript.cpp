@@ -70,7 +70,7 @@ const string COMPARISON_OPERATORS[] = {"==","!=",">","<",">=","<="};
 //declare full scope
 class token;
 class function;
-bool parseLine (string l, int location, bool isFunc, vector<token*> extraScope);
+bool parseLine (string l, int location, bool isFunc, vector<token*> extraScope, int min, int max);
 bool checkIfInt(string str);
 string trimSpace (string c);
 bool checkIfdouble(string str);
@@ -84,7 +84,7 @@ void throwError (int code, int line);
 vector<string> splitString(string content, string delimiter);
 token* lookupVar (string name, vector<token*> extra);
 function* lookupFunction (string name);
-int searchSkipLocation (string name, int line);
+int searchSkipLocation (string name, int line, int min, int max);
 bool parseToBoolean (string str, vector<token*> extraScope);
 bool getBooleanFromString (string str, vector<token*> extraScope);
 vector<string> splitStringMultiple (string content, string del1, string del2);
@@ -94,6 +94,7 @@ vector<token*> parseToRawArgs (string str, vector<token*> extraScope);
 //global variables
 vector<string> mainScript;
 int reader = 0;
+int mini_reader;
 vector<int> intergers;
 vector<double> doubles;
 vector<string> strings;
@@ -148,12 +149,14 @@ class function {
     public:
         string name;
         vector<string> code;
-        int returnType;
+        int returnType, scopemin, scopemax;
         vector<string> para;
         vector<token*> paraFull;
-        function (int _returnType, string _name, string _para, vector<string> _code) {
+        function (int _returnType, string _name, string _para, vector<string> _code, int _scopemin, int _scopemax) {
             returnType = _returnType;
             name = _name;
+            scopemin = _scopemin;
+            scopemax = _scopemax;
             para = splitString(trimString(_para), ",");
             code = _code;
         }
@@ -162,11 +165,18 @@ class function {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
                 }
-                paraFull.push_back(new token(parameters[i]->type, para[i], *parameters[i]->Vint, *parameters[i]->Vdouble, *parameters[i]->Vstring, *parameters[i]->Vbool));
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                }
             }
-            int mini_reader;
-            for (mini_reader = 0; mini_reader < code.size(); mini_reader++) {
-                if (!parseLine(code[mini_reader], location, true, paraFull)) {
+            for (mini_reader = scopemin; mini_reader < scopemin + code.size(); mini_reader++) {
+                if (!parseLine(code[mini_reader - scopemin], mini_reader, true, paraFull, scopemin, scopemax)) {
                     break;
                 }
             }
@@ -177,101 +187,128 @@ class function {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
                 }
-                paraFull.push_back(new token(parameters[i]->type, para[i], *parameters[i]->Vint, *parameters[i]->Vdouble, *parameters[i]->Vstring, *parameters[i]->Vbool));
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                }
             }
-            int mini_reader;
-            for (mini_reader = 0; mini_reader < code.size(); mini_reader++) {
-                if (!parseLine(code[mini_reader], location, true, paraFull)) {
+            for (mini_reader = scopemin; mini_reader < scopemin + code.size(); mini_reader++) {
+                if (!parseLine(code[mini_reader - scopemin], mini_reader, true, paraFull, scopemin, scopemax)) {
                     break;
                 }
             }
-            string returnValue = splitString(code[mini_reader], " ")[2];
+            string returnValue = splitString(code[mini_reader - scopemin], " ")[2];
             token* val = lookupVar(returnValue, paraFull);
             if (!val) {
-                throwError(VAR_NOT_FOUND, location);
+                throwError(VAR_NOT_FOUND, mini_reader);
             }
+            paraFull.clear();
             if (!(val->type ^ VAL_INTERGER)) {
                 return val->returnInt();
             } else {
-                throwError(TYPE_MISMATCH, location);
+                throwError(TYPE_MISMATCH, mini_reader);
             }
-            paraFull.clear();
         }
         double runcodeDouble (int location, vector<token*> parameters) {
             for (int i = 0; i < para.size(); i++) {
                 if (!parameters[i]) {
                     throwError(VAR_NOT_FOUND, location);
                 }
-                cout << *parameters[i]->Vstring << endl;
-                cout << new token(parameters[i]->type, para[i], *parameters[i]->Vint, *parameters[i]->Vdouble, "", false) << endl;
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                }
             }
-            int mini_reader;
-            for (mini_reader = 0; mini_reader < code.size(); mini_reader++) {
-                if (!parseLine(code[mini_reader], location, true, paraFull)) {
+            for (mini_reader = scopemin; mini_reader < scopemin + code.size(); mini_reader++) {
+                if (!parseLine(code[mini_reader - scopemin], mini_reader, true, paraFull, scopemin, scopemax)) {
                     break;
                 }
             }
-            string returnValue = splitString(code[mini_reader], " ")[2];
+            string returnValue = splitString(code[mini_reader - scopemin], " ")[2];
             token* val = lookupVar(returnValue, paraFull);
             if (!val) {
-                throwError(VAR_NOT_FOUND, location);
+                throwError(VAR_NOT_FOUND, mini_reader);
             }
+            paraFull.clear();
             if (!(val->type ^ VAL_DOUBLE)) {
                 return val->returnDouble();
             } else {
-                throwError(TYPE_MISMATCH, location);
+                throwError(TYPE_MISMATCH, mini_reader);
             }
-            paraFull.clear();
         }
         string runcodeString (int location, vector<token*> parameters) {
             for (int i = 0; i < parameters.size(); i++) {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
                 }
-                paraFull.push_back(new token(parameters[i]->type, para[i], *parameters[i]->Vint, *parameters[i]->Vdouble, *parameters[i]->Vstring, *parameters[i]->Vbool));
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                }
             }
-            int mini_reader;
-            for (mini_reader = 0; mini_reader < code.size(); mini_reader++) {
-                if (!parseLine(code[mini_reader], location, true, paraFull)) {
+            for (mini_reader = scopemin; mini_reader < scopemin + code.size(); mini_reader++) {
+                if (!parseLine(code[mini_reader - scopemin], mini_reader, true, paraFull, scopemin, scopemax)) {
                     break;
                 }
             }
-            string returnValue = splitString(code[mini_reader], " ")[2];
+            string returnValue = splitString(code[mini_reader - scopemin], " ")[2];
             token* val = lookupVar(returnValue, paraFull);
             if (!val) {
-                throwError(VAR_NOT_FOUND, location);
+                throwError(VAR_NOT_FOUND, mini_reader);
             }
+            paraFull.clear();
             if (!(val->type ^ VAL_STRING)) {
                 return val->returnString();
             } else {
-                throwError(TYPE_MISMATCH, location);
+                throwError(TYPE_MISMATCH, mini_reader);
             }
-            paraFull.clear();
         }
         bool runcodeBool (int location, vector<token*> parameters) {
             for (int i = 0; i < parameters.size(); i++) {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
                 }
-                paraFull.push_back(new token(parameters[i]->type, para[i], *parameters[i]->Vint, *parameters[i]->Vdouble, *parameters[i]->Vstring, *parameters[i]->Vbool));
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    paraFull.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                }
             }
-            int mini_reader;
-            for (mini_reader = 0; mini_reader < code.size(); mini_reader++) {
-                if (!parseLine(code[mini_reader], location, true, paraFull)) {
+            for (mini_reader = scopemin; mini_reader < scopemin + code.size(); mini_reader++) {
+                if (!parseLine(code[mini_reader - scopemin], mini_reader, true, paraFull, scopemin, scopemax)) {
                     break;
                 }
             }
-            string returnValue = splitString(code[mini_reader], " ")[2];
+            string returnValue = splitString(code[mini_reader - scopemin], " ")[2];
             token* val = lookupVar(returnValue, paraFull);
             if (!val) {
-                throwError(VAR_NOT_FOUND, location);
+                throwError(VAR_NOT_FOUND, mini_reader);
             }
+            paraFull.clear();
             if (!(val->type ^ VAL_BOOL)) {
                 return val->returnBool();
             } else {
-                throwError(TYPE_MISMATCH, location);
+                throwError(TYPE_MISMATCH, mini_reader);
             }
-            paraFull.clear();
         }
 };
 bool checkIfInt(string str) {
@@ -435,21 +472,27 @@ function* lookupFunction (string name) {
     }
     return NULL;
 }
-int searchSkipLocation (string name, int line) {
-    for (int i = line; i < mainScript.size(); i++) {
+int searchSkipLocation (string name, int line, int min = 0, int max = mainScript.size()) {
+    for (int i = line; i < max; i++) {
         vector<string> script = splitString(mainScript[i], " ");
         if (script[0] == "SKIP") {
             if (script[2] == name) {
                 return i;
             }
         }
+        if (script[0] == "END") {
+            break;
+        }
     }
-    for (int i = 0; i < line; i++) {
+    for (int i = min; i < line; i++) {
         vector<string> script = splitString(mainScript[i], " ");
         if (script[0] == "SKIP") {
             if (script[2] == name) {
                 return i;
             }
+        }
+        if (script[0] == "END") {
+            break;
         }
     }
     throwError(SKIP_LOCATION_NOT_FOUND, line);
@@ -639,7 +682,7 @@ vector<token*> parseToRawArgs (string str, vector<token*> extraScope = blankStac
     }
     return res;
 }
-bool parseLine (string l, int location, bool isFunc = false, vector<token*> extraScope = blankStack) {
+bool parseLine (string l, int location, bool isFunc = true, vector<token*> extraScope = blankStack, int min = 0, int max = 0) {
     vector<string> script = splitString(l, " ");
     if (!script.size()) {
         throwError(EMPTY_LINE, location);
@@ -797,6 +840,7 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
         } else if (script[1] == "RETURN" && isFunc) {
             return false;
         } else {
+            cout << isFunc;
             throwError(SYNTAX_ERROR, location);
         }
     } else if (script[0] == "MAKE") {
@@ -869,7 +913,11 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
                         if (script[3] == "WHEN") {
                             if (checkIfSurroundedBy(script[4], '@')) {
                                 if (getBooleanFromString(trimString(script[4]), extraScope)) {
-                                    reader = searchSkipLocation(trimString(script[2]), location);
+                                    if (isFunc) {
+                                        mini_reader = searchSkipLocation(trimString(script[2]), location, min, max);
+                                    } else {
+                                        reader = searchSkipLocation(trimString(script[2]), location);
+                                    }
                                 }
                                 return true;
                             } else {
@@ -878,7 +926,11 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
                         } else if (script[3] == "UNLESS") {
                             if (checkIfSurroundedBy(script[4], '@')) {
                                 if (!getBooleanFromString(trimString(script[4]), extraScope)) {
-                                    reader = searchSkipLocation(trimString(script[2]), location);
+                                    if (isFunc) {
+                                        mini_reader = searchSkipLocation(trimString(script[2]), location, min, max);
+                                    } else {
+                                        reader = searchSkipLocation(trimString(script[2]), location);
+                                    }
                                 }
                                 return true;
                             } else {
@@ -886,7 +938,11 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
                             }
                         } else if (checkIfSurroundedBy(script[3], ':')) {
                             if (!getBooleanFromString(trimString(script[4]), extraScope)) {
-                                reader = searchSkipLocation(trimString(script[2]), location);
+                                if (isFunc) {
+                                    mini_reader = searchSkipLocation(trimString(script[2]), location, min, max);
+                                } else {
+                                    reader = searchSkipLocation(trimString(script[2]), location);
+                                }
                             }
                             return true;
                         } else {
@@ -894,7 +950,11 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
                         }
                     }
                     else {
-                        reader = searchSkipLocation(trimString(script[2]), location);
+                        if (isFunc) {
+                            mini_reader = searchSkipLocation(trimString(script[2]), location, min, max);
+                        } else {
+                            reader = searchSkipLocation(trimString(script[2]), location);
+                        }
                     }
 
                 } else {
@@ -927,7 +987,7 @@ bool parseLine (string l, int location, bool isFunc = false, vector<token*> extr
 //main
 int main() {
     string content;
-    ifstream file("test.sls");
+    ifstream file("./demo/test.sls");
     string line;
 
     while (getline (file, line)) {
@@ -935,6 +995,8 @@ int main() {
     }
     file.close();
     mainScript = splitString(content, ";");
+    parseLine ("MAKE NUMBER NULL 0", -2);
+    parseLine ("MAKE NUMBER NULL 0", -2);
     parseLine ("MAKE NUMBER NULL 0", -2);
     parseLine ("MAKE NUMBER NULL 0", -2);
     int latestReturnType = VAL_VOID;
@@ -979,12 +1041,12 @@ int main() {
             for (int j = foundTarget + 1; j < i; j++) {
                 function_code.push_back(mainScript[j]);
             }
-            funcs.push_back(new function(latestReturnType, latestName, latestPara, function_code));
+            funcs.push_back(new function(latestReturnType, latestName, latestPara, function_code, foundTarget + 1, i - 1));
             foundTarget = -1;
         }
     }
     for (reader = 0; reader < mainScript.size() -1; reader++) {
         mainScript[reader] = trimSpace(mainScript[reader]);
-        parseLine(mainScript[reader], reader);
+        parseLine(mainScript[reader], reader, false);
     }
 }
