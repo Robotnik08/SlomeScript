@@ -689,6 +689,9 @@ bool parseLine (string l, int location, bool isFunc = true, vector<token*> extra
     }
     if (script[0] == "DO") {
         if (checkIfSurroundedBy(script[1], '"')) {
+            if (isFunc) {
+                throwError(SYNTAX_ERROR, location);
+            }
             if (checkIfAlphaBetic(trimString(script[1]))) {
                 if (!checkIfSurroundedBy(script[2], ':')) {
                     throwError(SYNTAX_ERROR, location);
