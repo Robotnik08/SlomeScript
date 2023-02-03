@@ -628,14 +628,17 @@ bool parseLine (string l, int location, bool isFunc = false) {
                     } else if (script.size() > 5) {
                         throwError(TOO_MANY_ARGS, location);
                     }
+                    if (func->returnType ^ val->type) {
+                        throwError(TYPE_MISMATCH, location);
+                    }
                     if (!(func->returnType ^ VAL_INTERGER)) {
-                        func->runcodeInt(location, parseToRawArgs(script[2]));
+                        *val->Vint = func->runcodeInt(location, parseToRawArgs(script[2]));
                     } else if (!(func->returnType ^ VAL_DOUBLE)) {
-                        func->runcodeDouble(location, parseToRawArgs(script[2]));
+                        *val->Vdouble = func->runcodeDouble(location, parseToRawArgs(script[2]));
                     } else if (!(func->returnType ^ VAL_STRING)) {
-                        func->runcodeString(location, parseToRawArgs(script[2]));
+                        *val->Vstring = func->runcodeString(location, parseToRawArgs(script[2]));
                     } else if (!(func->returnType ^ VAL_BOOL)) {
-                        func->runcodeBool(location, parseToRawArgs(script[2]));
+                        *val->Vbool = func->runcodeBool(location, parseToRawArgs(script[2]));
                     }
                 } else {
                     if (script.size() < 3) {
