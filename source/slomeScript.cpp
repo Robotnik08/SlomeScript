@@ -990,7 +990,7 @@ bool parseLine (string l) {
 //main
 int main() {
     string content;
-    ifstream file("prosper.sls");
+    ifstream file("prosper.slome");
     string line;
 
     while (getline (file, line)) {
