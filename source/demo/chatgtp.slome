@@ -1,0 +1,19 @@
+MAKE NUMBER x 10;
+MAKE NUMBER y 5;
+MAKE NUMBER limit 15;
+
+DO SET x :x+y:;
+
+SKIP TO "calcdone" WHEN @x>limit@;
+
+DO SAY "x\sis\sless\sthan\sor\sequal\sto\s15";
+SKIP TO "end";
+
+SKIP LOCATION calcdone;
+DO SAY "x\sis\snow\sgreater\sthan\s15";
+
+SKIP LOCATION end;
+
+END 0;
+
+>> This was wrote by chat-gtp, I explained it the syntax and rules, and with a bit of trail and error it made this script!
