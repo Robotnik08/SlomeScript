@@ -8,7 +8,7 @@ DO SET intMax :intMax/2:;
 DO SAY "The\sinterger\slimit\sis:\s";
 DO SAY intMax;
 END 0;
-DEFINE FUNC DOUBLE pow :in,fac:;
+DEFINE FUNC NUMBER pow :in,fac:;
     MAKE NUMBER one 1;
     MAKE NUMBER startNum 0;
     DO SET startNum in;

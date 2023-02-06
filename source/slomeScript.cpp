@@ -28,6 +28,7 @@ using namespace std;
 #define TOO_FEW_ARGS 17
 #define INVALID_FUNC_NAME 18
 #define FUNC_NOT_FOUND 19
+#define NOT_A_NUMBER 20
 const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "Too many arguments at line: ",
                                  "Empty at line: ",
@@ -46,7 +47,8 @@ const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "An ENDFUNC has been found but no starting point at line: ",
                                  "Too few arguments at line: ",
                                  "Function names can only include letters, at line: ",
-                                 "Function not found at: "
+                                 "Function not found at: ",
+                                 "Must be a number at line: "
                                 };
 
 
@@ -883,6 +885,8 @@ bool parseLine (string l) {
             if (checkIfAlphaBetic(script[2])) {
                 if (checkIfdouble(script[3])) {
                     stack[stack.size()-1]->stack.push_back(new token(VAL_DOUBLE, script[2], 0, stod(script[3])));
+                } else {
+                    throwError(NOT_A_NUMBER, location);
                 }
             } else {
                 throwError(INVALID_VARIABLE_NAME, location);
@@ -974,11 +978,6 @@ bool parseLine (string l) {
                 throwError(INT32_OVERFLOW, location);
             }
             cout << endl;
-            for (int i = 0; i < stack.size(); i++) {
-                for (int j = 0; j < stack[i]->stack.size(); j++) {
-                    cout << "Name: " << stack[i]->stack[j]->name << " Val: " << *stack[i]->stack[j]->Vdouble << endl;
-                }
-            }
             _Exit(stoi(script[1]));
         } else {
             throwError(NOT_AN_INT, location);
@@ -991,7 +990,7 @@ bool parseLine (string l) {
 //main
 int main() {
     string content;
-    ifstream file("./demo/function_showcase.sls");
+    ifstream file("prosper.sls");
     string line;
 
     while (getline (file, line)) {
@@ -1000,7 +999,7 @@ int main() {
     file.close();
     mainScript = splitString(content, ";");
     stack.push_back(new scope(0, 0, mainScript.size()));
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 1000; i++) {
         parseLine ("MAKE NUMBER NULL 0");
     }
     int latestReturnType = VAL_VOID;
