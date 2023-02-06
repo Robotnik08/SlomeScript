@@ -1,8 +1,7 @@
-MAKE NUMBER what 3;
 MAKE NUMBER input 2;
-MAKE NUMBER factor 16;
+MAKE NUMBER factor 32;
 MAKE NUMBER intMax 0;
-MAKE STRING epicName "Sebastiaan";
+MAKE STRING epicName "Robotnik";
 DO "sayFancy" :epicName:;
 DO "pow" :input,factor: TO intMax;
 DO SET intMax :intMax/2:;
