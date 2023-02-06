@@ -1,11 +1,2 @@
-MAKE NUMBER index 0;
-MAKE NUMBER count 100;
-MAKE STRING name "Robotnik";
-SKIP LOCATION loop;
-    DO SET index :index+1:;
-    DO SAY index;
-    DO SAY ".\s";
-    DO SAY name;
-    DO SAY "\n";
-SKIP TO "loop" WHEN @index<count@;
+>> Write your first SlomeScript file here!
 END 0;

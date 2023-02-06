@@ -1,4 +1,4 @@
->> This is my first script ever written;
+>> This is the first script ever written;
 DO SAY "Hello\sWorld\sThis\sIs\sSlome\sSpeaking!\n";
 MAKE INT coolNumber -12;
 DO SAY coolNumber;
