@@ -11,6 +11,7 @@ Edit the sls file and watch the magic happen! A documentation is not yet made, s
 # VSCODE extension
 
 To make writing scripts easier, you can download the VSCODE extension <a href="https://github.com/Robotnik08/slomescript-vscodesupport">here</a>.
+Or install it in visualstudio code!
 
 # NOTICE
 
