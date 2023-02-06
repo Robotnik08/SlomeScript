@@ -777,6 +777,20 @@ bool parseLine (string l) {
                 throwError(TOO_MANY_ARGS, location);
             }
             system("PAUSE");
+        } else if (script[1] == "ALLOC") {
+            if (script.size() > 3) {
+                throwError(TOO_MANY_ARGS, location);
+            }
+            if (checkIfInt(script[2])) {
+                if (strOverflow(script[2])) {
+                    throwError(INT32_OVERFLOW, location);
+                }
+            } else {
+                throwError(NOT_AN_INT, location);
+            }
+            for (int i = 0; i < stoi(script[2]); i++) {
+                parseLine ("MAKE NUMBER NULL 0");
+            }
         } else if (script[1] == "SET") {
             if (script.size() > 4) {
                 throwError(TOO_MANY_ARGS, location);
@@ -999,9 +1013,7 @@ int main() {
     file.close();
     mainScript = splitString(content, ";");
     stack.push_back(new scope(0, 0, mainScript.size()));
-    for (int i = 0; i < 1000; i++) {
-        parseLine ("MAKE NUMBER NULL 0");
-    }
+    parseLine ("DO ALLOC 1000"); //allocates 1000 variables, leaving about 500 variables as space;
     int latestReturnType = VAL_VOID;
     int foundTarget = -1;
     string latestName = "";
