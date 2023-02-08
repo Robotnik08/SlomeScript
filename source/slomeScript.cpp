@@ -1125,15 +1125,40 @@ bool parseLine (string l) {
     return true;
 }
 //main
-int main() {
+int main(int argc, char* argv[]) {
     string content;
-    ifstream file("main.slome");
-    string line;
-
-    while (getline (file, line)) {
-        content += line;
+    bool debug = false;
+    if (!debug) {
+        string filename = argv[1];
+        for (int i = 2; i < argc; i++) {
+            filename.append(" ");
+            filename.append(argv[i]);
+        }
+        ifstream file(filename);
+        string line;
+        if (!file.good()) {
+            cout << "File was not found (reading: " << filename << ")" << endl;
+            system("PAUSE");
+            exit(1);
+        }
+        while (getline (file, line)) {
+            content += line;
+        }
+        file.close();
+    } else {
+        string filename = "./main.slome";
+        ifstream file(filename);
+        string line;
+        if (!file.good()) {
+            cout << "File was not found (reading: " << filename << ")" << endl;
+            system("PAUSE");
+            exit(1);
+        }
+        while (getline (file, line)) {
+            content += line;
+        }
+        file.close();
     }
-    file.close();
     mainScript = splitString(content, ";");
     stack.push_back(new scope(0, 0, mainScript.size()));
     parseLine ("DO ALLOC 1000"); //allocates 1000 variables, leaving about 500 variables as space

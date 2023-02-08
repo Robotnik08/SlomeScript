@@ -36,6 +36,7 @@ DO SAY result,"\n";
 DO SET myAge :myAge+1:;
 DO SET result myAge;
 DO SAY result,"\n";
+DO PAUSE;
 END 0;
 >> min max functions do not exist yet, however, they can be made;
 DEFINE FUNC NUMBER min :first,second:;
