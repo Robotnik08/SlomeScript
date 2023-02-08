@@ -718,12 +718,18 @@ vector<token*> parseToRawArgs (string str) {
         return res;
     }
     for (int i = 0; i < vals.size(); i++) {
-        
         token* val = lookupVar(vals[i]);
-        if (!val) {
+        if (val) {
+            res.push_back(val);
+        } else if (checkIfdouble(vals[i])) {
+            res.push_back(new token(VAL_DOUBLE, "", 0, stod(vals[i])));
+        } else if (checkIfSurroundedBy(vals[i], '"')) {
+            res.push_back(new token(VAL_DOUBLE, "", 0, 0, trimString(vals[i])));
+        } else if (vals[i] == "true" || vals[i] == "false") {
+            res.push_back(new token(VAL_DOUBLE, "", 0, 0, "", vals[i][0] == 't'));
+        } else {
             throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
         }
-        res.push_back(val);
     }
     return res;
 }

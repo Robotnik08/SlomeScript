@@ -1,12 +1,9 @@
-MAKE NUMBER input 2;
-MAKE NUMBER factor 32;
 MAKE NUMBER intMax 0;
 MAKE STRING epicName "Robotnik";
 DO "sayFancy" :epicName:;
-DO "pow" :input,factor: TO intMax;
+DO "pow" :2,32: TO intMax;
 DO SET intMax :intMax/2:;
 DO SAY "The\sinterger\slimit\sis:\s",intMax,"\n";
-DO PAUSE;
 END 0;
 DEFINE FUNC NUMBER pow :in,fac:;
     MAKE NUMBER startNum in;
