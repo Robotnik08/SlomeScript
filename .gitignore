@@ -1,3 +1,4 @@
 .vscode
-slomeScript.exe
-test.exe
+*.exe
+*.dll
+*.bat

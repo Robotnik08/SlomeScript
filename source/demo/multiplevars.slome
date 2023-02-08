@@ -1,0 +1,7 @@
+>> Display on how multiple variables can be used inside strings;
+MAKE NUMBER age 17;
+MAKE STRING name "Robotnik";
+MAKE STRING lastName "08";
+MAKE STRING fullName name,"\s",lastName;
+DO SAY "My\sfull\sname\sis:\s",fullName,"\sand\sI\sam\s",age,"\syears\sold!\sAnd\sin\sten\syears\sI\swill\sbe\s",:age+10:,"\syears\sold!\n";
+END 0;
