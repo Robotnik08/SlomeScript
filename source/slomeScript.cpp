@@ -815,7 +815,7 @@ token* getResultFromString(string str) {
         }
         token* val = lookupVar(str);
         if (!val) {
-            vector<string> splitArrayarguments = splitString(str, "/");
+            vector<string> splitArrayarguments = splitString(str, "#");
             list* arr = lookupArr(splitArrayarguments[0]);
             if (!arr) {
                 throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
@@ -873,9 +873,6 @@ bool parseLine (string l) {
                 }
                 if (func->returnType ^ VAL_VOID) {
                     token* val = lookupVar(script[4]);
-                    if (!checkIfAlphaBetic(script[4])) {
-                        throwError(INVALID_VARIABLE_NAME, location);
-                    }
                     if (!val) {
                         throwError(VAR_NOT_FOUND, location);
                     }
@@ -930,7 +927,7 @@ bool parseLine (string l) {
                         cout << PI;
                         break;
                     }
-                    vector<string> splitArrayarguments = splitString(args[i], "/");
+                    vector<string> splitArrayarguments = splitString(args[i], "#");
                     list* arr = lookupArr(args[i]);
                     if (arr) {
                         if (!(splitArrayarguments.size() - 1)) {
@@ -991,16 +988,69 @@ bool parseLine (string l) {
             if (script.size() > 4) {
                 throwError(TOO_MANY_ARGS, location);
             }
-            if (checkIfAlphaBetic(script[2])) {
-                token* val = lookupVar(script[2]);
-                if (!val) {
+            token* val = lookupVar(script[2]);
+            if (!val) {
+                vector<string> splitArrayarguments = splitString(script[2], "#");
+                list* arr = lookupArr(splitArrayarguments[0]);
+                if (arr) {
+                    if (!checkIfInt(splitArrayarguments[1])) {
+                        throwError(NOT_AN_INT, location);
+                    }
+                    val = arr->getFromIndex(stoi(splitArrayarguments[1]));
+                } else {
                     throwError(VAR_NOT_FOUND, location);
-                } else if (!(val->type ^ VAL_INTERGER)) {
+                }
+            }
+            if (!(val->type ^ VAL_INTERGER)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        *val->Vint = val1->returnInt();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else {
+                    *val->Vint = val1->returnInt();
+                }
+            } else if (!(val->type ^ VAL_DOUBLE)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_DOUBLE)) {
+                        *val->Vdouble = val1->returnDouble();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val->Vdouble = val1->returnDouble();
+                } else {
+                    throwError(TYPE_MISMATCH, location);
+                }
+            } else if (!(val->type ^ VAL_STRING)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_STRING)) {
+                        val->Vstring = val1->returnString();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else {
+                    val->Vstring = val1->returnString();
+                }
+            } else if (!(val->type ^ VAL_BOOL)) {
+                if (script[3] == "true" || script[3] == "false") {
+                    *val->Vbool = script[3][0] == 't' ? true : false;
+                } else {
                     token* val1 = lookupVar(script[3]);
                     if (!val1) {
                         val1 = getResultFromString(script[3]);
-                        if (!(val1->type ^ VAL_INTERGER)) {
-                            *val->Vint = val1->returnInt();
+                        if (!(val1->type ^ VAL_BOOL)) {
+                            *val->Vint = val1->returnBool();
                         } else {
                             throwError(TYPE_MISMATCH, location);
                         }
@@ -1008,52 +1058,7 @@ bool parseLine (string l) {
                     } else {
                         *val->Vint = val1->returnInt();
                     }
-                } else if (!(val->type ^ VAL_DOUBLE)) {
-                    token* val1 = lookupVar(script[3]);
-                    if (!val1) {
-                        val1 = getResultFromString(script[3]);
-                        if (!(val1->type ^ VAL_DOUBLE)) {
-                            *val->Vdouble = val1->returnDouble();
-                        } else {
-                            throwError(TYPE_MISMATCH, location);
-                        }
-                        delete(val1);
-                    } else {
-                        *val->Vdouble = val1->returnDouble();
-                    }
-                } else if (!(val->type ^ VAL_STRING)) {
-                    token* val1 = lookupVar(script[3]);
-                    if (!val1) {
-                        val1 = getResultFromString(script[3]);
-                        if (!(val1->type ^ VAL_STRING)) {
-                            val->Vstring = val1->returnString();
-                        } else {
-                            throwError(TYPE_MISMATCH, location);
-                        }
-                        delete(val1);
-                    } else {
-                        val->Vstring = val1->returnString();
-                    }
-                } else if (!(val->type ^ VAL_BOOL)) {
-                    if (script[3] == "true" || script[3] == "false") {
-                        *val->Vbool = script[3][0] == 't' ? true : false;
-                    } else {
-                        token* val1 = lookupVar(script[3]);
-                        if (!val1) {
-                            val1 = getResultFromString(script[3]);
-                            if (!(val1->type ^ VAL_BOOL)) {
-                                *val->Vint = val1->returnBool();
-                            } else {
-                                throwError(TYPE_MISMATCH, location);
-                            }
-                            delete(val1);
-                        } else {
-                            *val->Vint = val1->returnInt();
-                        }
-                    }
                 }
-            } else {
-                throwError(VAR_NOT_FOUND, location);
             }
         } else if (script[1] == "RETURN") {
             if (stack.size() == 1) {
