@@ -184,8 +184,11 @@ class list {
             }
             content[i] = val;
         }
-        token* getFromIndex(int i) {
+        token* getFromIndex(int i, bool ex = true) {
             if (i >= content.size()) {
+                if (!ex) {
+                    return NULL;
+                }
                 throwError(ARRAY_OVERFLOW, runner);
             }
             if (content[i] == NULL) {
@@ -271,6 +274,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -307,6 +317,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -343,6 +360,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -378,6 +402,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -399,6 +430,43 @@ class function {
             } else {
                 throwError(TYPE_MISMATCH, stack[stack.size()-1]->runner);
             }
+        }
+        list* runcodeArr (int location, vector<token*> parameters) {
+            for (int i = 0; i < parameters.size(); i++) {
+                if (!parameters[i]) {
+                    throwError(TOO_FEW_ARGS, location);
+                }
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
+                }
+            }
+            for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
+                if (!parseLine(code[stack[stack.size()-1]->runner - scopemin])) {
+                    break;
+                }
+            }
+            string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
+            list* val = lookupArr(returnValue);
+            if (!val) {
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
+            }
+            stack.pop_back();
+            return val;
         }
 };
 bool checkIfInt(string str) {
@@ -861,7 +929,7 @@ token* getRefrenceFromString(string str) {
             throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
         }
         if (!(splitArrayarguments.size() - 1)) {
-            throwError(SYNTAX_ERROR, stack[stack.size()-1]->runner);
+            return NULL;
         } else {
             if (!checkIfInt(splitArrayarguments[1])) {
                 throwError(NOT_AN_INT, stack[stack.size()-1]->runner);
@@ -961,7 +1029,16 @@ bool parseLine (string l) {
                     if (!val) {
                         val = getRefrenceFromString(script[4]);
                         if (!val) {
-                            throwError(VAR_NOT_FOUND, location);
+                            list* arr = lookupArr(script[4]);
+                            if (!arr) {
+                                throwError(VAR_NOT_FOUND, location);
+                            }
+                            if (!(func->returnType ^ VAL_ARRAY)) {
+                                arr = func->runcodeArr(location, parseToRawArgs(script[2]));
+                                return true;
+                            } else {
+                                throwError(VAR_NOT_FOUND, location);
+                            }
                         }
                     }
                     if (script[3] != "TO") {
@@ -1077,19 +1154,38 @@ bool parseLine (string l) {
                 throwError(TOO_MANY_ARGS, location);
             }
             token* val = lookupVar(script[2]);
+            list* arr;
+            int indexArr = 0;
             if (!val) {
                 vector<string> splitArrayarguments = splitString(script[2], "#");
-                list* arr = lookupArr(splitArrayarguments[0]);
+                arr = lookupArr(splitArrayarguments[0]);
                 if (arr) {
-                    if (!checkIfInt(splitArrayarguments[1])) {
-                        throwError(NOT_AN_INT, location);
+                    token* val1 = getResultFromString(splitArrayarguments[1]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        indexArr = val1->returnInt();
+                        val = arr->getFromIndex(val1->returnInt(), false);
+                    } else if (!(val1->type ^ VAL_DOUBLE)) {
+                        indexArr = val1->returnDouble();
+                        val = arr->getFromIndex(val1->returnDouble(), false);
+                    } else {
+                        throwError(NOT_A_NUMBER, location);
                     }
-                    val = arr->getFromIndex(stoi(splitArrayarguments[1]));
+                    if (!val) {
+                        val = new token(-1,"");
+                    }
+                    delete(val1);
                 } else {
                     throwError(VAR_NOT_FOUND, location);
                 }
             }
-            if (!(val->type ^ VAL_INTERGER)) {
+            if (!(val->type ^ -1)) {
+                token* val1 = getResultFromString(script[3]);
+                if (!val1) {
+                    throwError(VAR_NOT_FOUND, location);
+                } else {
+                    arr->setIndex(indexArr, val1);
+                }
+            } else if (!(val->type ^ VAL_INTERGER)) {
                 token* val1 = lookupVar(script[3]);
                 if (!val1) {
                     val1 = getResultFromString(script[3]);
@@ -1215,7 +1311,7 @@ bool parseLine (string l) {
             }
         } else if (script[1] == "RETURN") {
             if (stack.size() == 1) {
-                throwError(SYNTAX_ERROR, location);
+                
             }
             return false;
         } else {
@@ -1515,6 +1611,8 @@ int main(int argc, char* argv[]) {
                     latestReturnType = VAL_BOOL;
                 } else if (spl[2] == "VOID") {
                     latestReturnType = VAL_VOID;
+                } else if (spl[2] == "ARRAY") {
+                    latestReturnType = VAL_ARRAY;
                 } else {
                     throwError(SYNTAX_ERROR, i);
                 }
