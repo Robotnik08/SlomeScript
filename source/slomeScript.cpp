@@ -306,6 +306,9 @@ class function {
         double runcodeDouble (int location, vector<token*> parameters) {
             stack.push_back(new scope(scopemin, scopemin, scopemax));
             for (int i = 0; i < para.size(); i++) {
+                if (para[0] == "" && !(para.size()-1)) {
+                    break;
+                } 
                 if (!parameters[i]) {
                     throwError(VAR_NOT_FOUND, location);
                 }
@@ -390,6 +393,7 @@ class function {
             }
         }
         bool runcodeBool (int location, vector<token*> parameters) {
+            stack.push_back(new scope(scopemin, scopemin, scopemax));
             for (int i = 0; i < parameters.size(); i++) {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
@@ -432,6 +436,7 @@ class function {
             }
         }
         list* runcodeArr (int location, vector<token*> parameters) {
+            stack.push_back(new scope(scopemin, scopemin, scopemax));
             for (int i = 0; i < parameters.size(); i++) {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
@@ -580,7 +585,9 @@ bool checkIfSurroundedBy (string str, char character) {
 }
 string trimString(string str) {
     str.erase(0,1);
-    str.erase(str.size()-1);
+    if (str.size()) {
+        str.erase(str.size()-1);
+    }
     return str;
 }
 string prepareLog(string out) {
@@ -599,7 +606,7 @@ void throwError (int code, int line) {
     cout << ERROR_MESSAGES[code-1] << line + 1;
     _Exit(code);
 }
-vector<string> splitString(string content, string delimiter) {
+vector<string> splitString(string content, string delimiter) { 
     vector<string> res; 
 
     size_t pos = 0;
@@ -1034,7 +1041,20 @@ bool parseLine (string l) {
                                 throwError(VAR_NOT_FOUND, location);
                             }
                             if (!(func->returnType ^ VAL_ARRAY)) {
-                                arr = func->runcodeArr(location, parseToRawArgs(script[2]));
+                                list* returnArray = func->runcodeArr(location, parseToRawArgs(script[2]));
+                                arr->content.clear();
+                                for (int i = 0; i < returnArray->content.size(); i++) {
+                                    token* returnVal = returnArray->content[i];
+                                    if (!(returnVal->type ^ VAL_INTERGER)) {
+                                        arr->content.push_back(new token(returnVal->type, "", returnVal->returnInt()));
+                                    } else if (!(returnVal->type ^ VAL_DOUBLE)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, returnVal->returnDouble()));
+                                    } else if (!(returnVal->type ^ VAL_STRING)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, 0, returnVal->returnString()));
+                                    } else  if (!(returnVal->type ^ VAL_BOOL)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, 0, "", returnVal->returnBool()));
+                                    }
+                                }
                                 return true;
                             } else {
                                 throwError(VAR_NOT_FOUND, location);
@@ -1114,9 +1134,9 @@ bool parseLine (string l) {
                             continue;
                         }
                     }
-                    token* val = lookupVar(args[i]);
+                    token* val = getResultFromString(args[i]);
                     if (!val) {
-                        val = getResultFromString(args[i]);
+                        throwError(VAR_NOT_FOUND, location);
                     }
                     if (!(val->type ^ VAL_INTERGER)) {
                         cout << val->returnInt();
@@ -1306,6 +1326,21 @@ bool parseLine (string l) {
                 } else {
                     throwError(TYPE_MISMATCH, location);
                 }
+            } else if (script[3] == "TYPE") {
+                token* val1 = lookupVar(script[5]);
+                if (!val1) {
+                    val1 = getRefrenceFromString(script[5]);
+                    if (!val1) {
+                        throwError(VAR_NOT_FOUND, location);
+                    }
+                }
+                if (!(val1->type ^ VAL_INTERGER)) {
+                    *val1->Vint = val->type;
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val1->Vdouble = val->type;
+                } else {
+                    throwError(TYPE_MISMATCH, location);
+                }
             } else {
                 throwError(SYNTAX_ERROR, location);
             }
@@ -1444,8 +1479,11 @@ bool parseLine (string l) {
                 stack[stack.size()-1]->arrays.push_back(new list(script[2]));
                 list* arr = lookupArr(script[2]);
                 vector<token*> arguments = parseToRawArgs(script[3], false);
-                for (int i = 0; i < arguments.size(); i++) {
-                    arr->content.push_back(arguments[i]);
+                int size = arguments.size();
+                if (arguments.size()) {
+                    for (int i = 0; i < arguments.size(); i++) {
+                        arr->content.push_back(arguments[i]);
+                    }
                 }
             } else {
                 throwError(INVALID_VARIABLE_NAME, location);
@@ -1637,9 +1675,13 @@ int main(int argc, char* argv[]) {
             foundTarget = -1;
         }
     }
+    int counter = 0;
+    int latest = 0;
     for (stack[stack.size()-1]->runner = 0; stack[stack.size()-1]->runner < mainScript.size() -1; stack[stack.size()-1]->runner++) {
+        counter++;
         mainScript[stack[stack.size()-1]->runner] = trimSpace(mainScript[stack[stack.size()-1]->runner]);
         runner = stack[stack.size()-1]->runner;
         parseLine(mainScript[stack[stack.size()-1]->runner]);
+        latest = stack.size();
     }
 }
