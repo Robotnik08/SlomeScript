@@ -1,11 +1,13 @@
-MAKE ARRAY range 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18;
+MAKE ARRAY range 0,1,2,3,4,5,6,7,8,"Sebastiaan",10,11,12,13,14,15,16,17,18;
 DO "pushBack" :range,19: TO range;
 DO "pushBack" :range,20: TO range;
 DO "popBack" :range: TO range;
 DO "logArrayFancy" :range,"\c\s":;
 MAKE NUMBER num 0;
-DO GET num TYPE TO num;
-DO SAY num;
+MAKE STRING hi "string";
+DO GET hi TYPE TO num;
+DO SAY "String\sis\stype:\s",num;
+DO PAUSE;
 END 0;
 DEFINE FUNC VOID logArrayFancy :arr,str:;
     MAKE NUMBER i 0;
