@@ -29,6 +29,9 @@ using namespace std;
 #define INVALID_FUNC_NAME 18
 #define FUNC_NOT_FOUND 19
 #define NOT_A_NUMBER 20
+#define ARRAY_OVERFLOW 21
+#define UNSET_ARRAY_VALUE 22
+#define MUST_BE_POSITIVE 23
 const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "Too many arguments at line: ",
                                  "Empty at line: ",
@@ -47,8 +50,11 @@ const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
                                  "An ENDFUNC has been found but no starting point at line: ",
                                  "Too few arguments at line: ",
                                  "Function names can only include letters, at line: ",
-                                 "Function not found at: ",
-                                 "Must be a number at line: "
+                                 "Function not found at line: ",
+                                 "Must be a number at line: ",
+                                 "Array overflow at line: ",
+                                 "Value is unset in array at line: ",
+                                 "Value must be positive at line: "
                                 };
 
 
@@ -57,6 +63,7 @@ const string ERROR_MESSAGES[] = {"SyntaxError at line: ",
 #define VAL_DOUBLE 1
 #define VAL_BOOL 2
 #define VAL_STRING 3
+#define VAL_ARRAY 4
 
 #define VAL_VOID -1
 
@@ -73,10 +80,11 @@ const string COMPARISON_OPERATORS[] = {"==","!=",">","<",">=","<="};
 #define PI 3.14159265
 
 //declare full scope
-class token;
+bool debug = true;
 class function;
+class token;
+class list;
 class scope;
-bool parseLine (string l);
 bool checkIfInt(string str);
 string trimSpace (string c);
 bool checkIfdouble(string str);
@@ -90,12 +98,15 @@ void throwError (int code, int line);
 vector<string> splitString(string content, string delimiter);
 token* lookupVar (string name);
 function* lookupFunction (string name);
+list* lookupArr (string name);
 int searchSkipLocation (string name, int line);
 bool parseToBoolean (string str);
 bool getBooleanFromString (string str);
 vector<string> splitStringMultiple (string content, string del1, string del2);
 double returnMath (string str);
-vector<token*> parseToRawArgs (string str);
+vector<token*> parseToRawArgs (string str, bool trimmed);
+token* getResultFromString(string str);
+bool parseLine (string l);
 
 //global variables
 vector<string> mainScript;
@@ -106,18 +117,9 @@ vector<int8_t> booleans;
 vector<scope*> stack;
 vector<function*> funcs;
 vector<token*> blankStack = vector<token*>(0);
-
+vector<list*> blankStackArr = vector<list*>(0);
+int runner = 0;
 //declare classes and functions
-class scope {
-    public:
-        vector<token*> stack = blankStack;
-        int runner, min, max = 0;
-        scope(int _start, int _min, int _max) {
-            runner = _start;
-            min = _min;
-            max = _max;
-        }
-};
 class token {
     public:
         int type;
@@ -129,7 +131,7 @@ class token {
         token(int _type, string _name, int valueInt = 0, double valuedouble = 0, string valueString = "", int8_t valueBool = 0) {
             type = _type;
             name = _name;
-            if (!(_type ^ VAL_INTERGER)) {
+            if (!(_type ^ VAL_INTERGER) || !(_type ^ VAL_ARRAY)) {
                 intergers.push_back(valueInt);
                 Vint = &intergers[intergers.size()-1];
             } else if (!(_type ^ VAL_DOUBLE)) {
@@ -155,8 +157,64 @@ class token {
         bool returnBool() {
             return *Vbool != 0;
         }
+
         void freeItSelf() {
             free(this);
+        }
+
+
+};
+class list {
+    public:
+        string name;
+        vector<token*> content;
+        list(string _name) {
+            name = _name;
+        }
+        ~list() {
+            for (int i = content.size(); i > 0; i--) {
+                delete(content[i]-1);
+            }
+        }
+        void push (token* val, list* arr = NULL) {
+            content.push_back(val);
+        }
+        void setIndex (int i, token* val) {
+            while (i >= content.size()) {
+                content.push_back(NULL);
+            }
+            content[i] = val;
+        }
+        token* getFromIndex(int i, bool ex = true) {
+            if (i >= content.size()) {
+                if (!ex) {
+                    return NULL;
+                }
+                throwError(ARRAY_OVERFLOW, runner);
+            }
+            if (content[i] == NULL) {
+                throwError(UNSET_ARRAY_VALUE, runner);
+            }
+            return content[i];
+        }
+};
+class scope {
+    public:
+        vector<token*> stack = blankStack;
+        vector<list*> arrays = blankStackArr;
+        int runner, min, max = 0;
+        scope(int _start, int _min, int _max) {
+            runner = _start;
+            min = _min;
+            max = _max;
+        }
+        ~scope () {
+            for (int i = stack.size(); i > 0; i--) {
+                delete(stack[i]-1);
+            }
+            for (int i = arrays.size(); i > 0; i--) {
+                delete(arrays[i]-1);
+            }
         }
 };
 class function {
@@ -187,6 +245,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -210,6 +275,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -220,7 +292,10 @@ class function {
             string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
             token* val = lookupVar(returnValue);
             if (!val) {
-                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                val = getResultFromString(returnValue);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
             }
             stack.pop_back();
             if (!(val->type ^ VAL_INTERGER)) {
@@ -232,6 +307,9 @@ class function {
         double runcodeDouble (int location, vector<token*> parameters) {
             stack.push_back(new scope(scopemin, scopemin, scopemax));
             for (int i = 0; i < para.size(); i++) {
+                if (para[0] == "" && !(para.size()-1)) {
+                    break;
+                } 
                 if (!parameters[i]) {
                     throwError(VAR_NOT_FOUND, location);
                 }
@@ -243,6 +321,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -253,7 +338,10 @@ class function {
             string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
             token* val = lookupVar(returnValue);
             if (!val) {
-                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                val = getResultFromString(returnValue);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
             }
             stack.pop_back();
             if (!(val->type ^ VAL_DOUBLE)) {
@@ -276,6 +364,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -286,7 +381,10 @@ class function {
             string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
             token* val = lookupVar(returnValue);
             if (!val) {
-                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                val = getResultFromString(returnValue);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
             }
             stack.pop_back();
             if (!(val->type ^ VAL_STRING)) {
@@ -296,6 +394,7 @@ class function {
             }
         }
         bool runcodeBool (int location, vector<token*> parameters) {
+            stack.push_back(new scope(scopemin, scopemin, scopemax));
             for (int i = 0; i < parameters.size(); i++) {
                 if (!parameters[i]) {
                     throwError(TOO_FEW_ARGS, location);
@@ -308,6 +407,13 @@ class function {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
                 } else if (!(parameters[i]->type ^ VAL_BOOL)) {
                     stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
                 }
             }
             for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
@@ -318,7 +424,10 @@ class function {
             string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
             token* val = lookupVar(returnValue);
             if (!val) {
-                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                val = getResultFromString(returnValue);
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
             }
             stack.pop_back();
             if (!(val->type ^ VAL_BOOL)) {
@@ -326,6 +435,44 @@ class function {
             } else {
                 throwError(TYPE_MISMATCH, stack[stack.size()-1]->runner);
             }
+        }
+        list* runcodeArr (int location, vector<token*> parameters) {
+            stack.push_back(new scope(scopemin, scopemin, scopemax));
+            for (int i = 0; i < parameters.size(); i++) {
+                if (!parameters[i]) {
+                    throwError(TOO_FEW_ARGS, location);
+                }
+                if (!(parameters[i]->type ^ VAL_INTERGER)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], parameters[i]->returnInt()));
+                } else if (!(parameters[i]->type ^ VAL_DOUBLE)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, parameters[i]->returnDouble()));
+                } else if (!(parameters[i]->type ^ VAL_STRING)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, parameters[i]->returnString()));
+                } else if (!(parameters[i]->type ^ VAL_BOOL)) {
+                    stack[stack.size()-1]->stack.push_back(new token(parameters[i]->type, para[i], 0, 0, "", parameters[i]->returnBool()));
+                } else if (!(parameters[i]->type ^ VAL_ARRAY)) {
+                    list* res = new list(para[i]);
+                    list* result = (list*)*parameters[i]->Vint;
+                    for (int j = 0; j < result->content.size(); j++) {
+                        res->push(result->getFromIndex(j));
+                    }
+                    stack[stack.size()-1]->arrays.push_back(res);
+                }
+            }
+            for (stack[stack.size()-1]->runner = scopemin; stack[stack.size()-1]->runner < scopemin + code.size(); stack[stack.size()-1]->runner++) {
+                if (!parseLine(code[stack[stack.size()-1]->runner - scopemin])) {
+                    break;
+                }
+            }
+            string returnValue = splitString(code[stack[stack.size()-1]->runner - scopemin], " ")[2];
+            list* val = lookupArr(returnValue);
+            if (!val) {
+                if (!val) {
+                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+                }
+            }
+            stack.pop_back();
+            return val;
         }
 };
 bool checkIfInt(string str) {
@@ -439,7 +586,9 @@ bool checkIfSurroundedBy (string str, char character) {
 }
 string trimString(string str) {
     str.erase(0,1);
-    str.erase(str.size()-1);
+    if (str.size()) {
+        str.erase(str.size()-1);
+    }
     return str;
 }
 string prepareLog(string out) {
@@ -449,13 +598,19 @@ string prepareLog(string out) {
     while ((out.find("\\n")) != string::npos) {
         out = out.replace(out.find("\\n"), sizeof("\\n") - 1, "\n");
     }
+    while ((out.find("\\c")) != string::npos) {
+        out = out.replace(out.find("\\c"), sizeof("\\c") - 1, ",");
+    }
     return out;
 }
 void throwError (int code, int line) {
-    cout << ERROR_MESSAGES[code-1] << line + 1;
+    cout << ERROR_MESSAGES[code-1] << line + 1 << endl;
+    if (!debug) {
+        system("PAUSE");
+    }
     _Exit(code);
 }
-vector<string> splitString(string content, string delimiter) {
+vector<string> splitString(string content, string delimiter) { 
     vector<string> res; 
 
     size_t pos = 0;
@@ -482,6 +637,16 @@ function* lookupFunction (string name) {
     for (int i = 0; i < funcs.size(); i++) {
         if (funcs[i]->name == name) {
             return funcs[i];
+        }
+    }
+    return NULL;
+}
+list* lookupArr (string name) {
+    for (int j = stack.size()-1; j >= 0; j--) {
+        for (int i = 0; i < stack[j]->arrays.size(); i++) {
+            if (stack[j]->arrays[i]->name == name) {
+                return stack[j]->arrays[i];
+            }
         }
     }
     return NULL;
@@ -530,10 +695,14 @@ bool parseToBoolean (string str) {
                 } else if (vals[0] == "true" || vals[0] == "false") {
                     val1 = new token(VAL_BOOL, "", 0, 0, "", vals[0][0] == 't');
                 } else {
-                    throwError(SYNTAX_ERROR, stack[stack.size()-1]->runner);
+                    val1 = getResultFromString(vals[0]);
+                    if (!val1) {
+                        throwError(SYNTAX_ERROR, stack[stack.size()-1]->runner);
+                    }
                 }
             }
             token* val2 = lookupVar(vals[1]);
+            bool free2 = false;
             if (!val2) {
                 if (checkIfSurroundedBy(vals[1], ':')) {
                     val2 = new token(VAL_DOUBLE, "", 0, returnMath(vals[1]));
@@ -546,7 +715,10 @@ bool parseToBoolean (string str) {
                 } else if (vals[1] == "true" || vals[1] == "false") {
                     val2 = new token(VAL_BOOL, "", 0, 0, "", vals[1][0] == 't');
                 } else {
-                    throwError(SYNTAX_ERROR, stack[stack.size()-1]->runner);
+                    val2 = getResultFromString(vals[1]);
+                    if (!val2) {
+                        throwError(SYNTAX_ERROR, stack[stack.size()-1]->runner);
+                    }
                 }
             }
             if (val1->type != val2->type) {
@@ -656,20 +828,37 @@ vector<string> splitStringMultiple (string content, string del1, string del2) {
     return res;
 
 }
+string getOperations (string str) {
+    string res = "";
+    for (int i = 0; i < str.size(); i++) {
+        switch (str[i]) {
+            case '+':
+            case '-':
+            case '*':
+            case '/':
+                res += str[i];
+                break;
+        }
+    }
+    return res;
+}
 double returnMath (string str) {
     str = trimString(str);
     vector<string> finalOperations = splitStringMultiple(str, "-", "+");
     double finalResult = 0;
-    int operatorindexMain = 0;
+    int operatorindex = 0;
+    string operations = getOperations(str);
     for (int i = 0; i < finalOperations.size(); i++) {
         double result;
-        int operatorindex = 0;
         vector<string> multi = splitStringMultiple(finalOperations[i], "*", "/");
         for (int j = 0; j < multi.size(); j++) {
             if (checkIfAlphaBetic(multi[j])) {
                 token* val = lookupVar(multi[j]);
                 if (!val) {
-                    throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);  
+                    val = getResultFromString(multi[j]);
+                    if (!val) {
+                        throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner); 
+                    }
                 } else {
                     if (!j) {
                         if (!((val->type ^ VAL_INTERGER))) {
@@ -681,9 +870,9 @@ double returnMath (string str) {
                         }
                     } else {
                         if (!((val->type ^ VAL_INTERGER))) {
-                            result = finalOperations[i][operatorindex] == '*' ? result * val->returnInt() : result / val->returnInt();
+                            result = operations[operatorindex] == '*' ? result * val->returnInt() : result / val->returnInt();
                         } else if (!(val->type ^ VAL_DOUBLE)) {
-                            result = finalOperations[i][operatorindex] == '*' ? result * val->returnDouble() : result / val->returnDouble();
+                            result = operations[operatorindex] == '*' ? result * val->returnDouble() : result / val->returnDouble();
                         } else {
                             throwError(TYPE_MISMATCH, stack[stack.size()-1]->runner);
                         }
@@ -693,26 +882,26 @@ double returnMath (string str) {
                 if (!j) {
                     result = stod(multi[j]);
                 } else {
-                    result = finalOperations[i][operatorindex] == '*' ? result * stod(multi[j]) : result / stod(multi[j]);
+                    result = operations[operatorindex] == '*' ? result * stod(multi[j]) : result / stod(multi[j]);
+                    operatorindex++;
                 }
             } else if (checkIfSurroundedBy(multi[j], ':')) {
                 result = returnMath(multi[j]);
             } else {
                 throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
             }
-            operatorindex += multi[j].size();
         }
         if (!i) {
             finalResult = result;
         } else {
-            finalResult = str[operatorindexMain] == '+' ? finalResult + result : finalResult - result;
+            finalResult = operations[operatorindex] == '+' ? finalResult + result : finalResult - result;
+            operatorindex++;
         }
-        operatorindexMain += finalOperations[i].size();
     }
     return finalResult;
 }
-vector<token*> parseToRawArgs (string str) {
-    vector<string> vals = splitString(trimString(str), ",");
+vector<token*> parseToRawArgs (string str, bool trimmed = true) {
+    vector<string> vals = trimmed ? splitString(trimString(str), ",") : splitString(str, ",");
     vector<token*> res;
     if (trimString(str) == "") {
         return res;
@@ -724,14 +913,111 @@ vector<token*> parseToRawArgs (string str) {
         } else if (checkIfdouble(vals[i])) {
             res.push_back(new token(VAL_DOUBLE, "", 0, stod(vals[i])));
         } else if (checkIfSurroundedBy(vals[i], '"')) {
-            res.push_back(new token(VAL_DOUBLE, "", 0, 0, trimString(vals[i])));
+            res.push_back(new token(VAL_STRING, "", 0, 0, trimString(vals[i])));
         } else if (vals[i] == "true" || vals[i] == "false") {
-            res.push_back(new token(VAL_DOUBLE, "", 0, 0, "", vals[i][0] == 't'));
+            res.push_back(new token(VAL_BOOL, "", 0, 0, "", vals[i][0] == 't'));
         } else {
-            throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+            val = getResultFromString(vals[i]);
+            if (!val) {
+                list* arr = lookupArr(vals[i]);
+                if (arr) {
+                    res.push_back(new token(VAL_ARRAY, "", (int)arr));
+                    continue;
+                }
+                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+            }
+            res.push_back(val);
         }
     }
     return res;
+}
+token* getRefrenceFromString(string str) {
+    token* val = lookupVar(str);
+    if (!val) {
+        vector<string> splitArrayarguments = splitString(str, "#");
+        list* arr = lookupArr(splitArrayarguments[0]);
+        if (!arr) {
+            throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+        }
+        if (!(splitArrayarguments.size() - 1)) {
+            return NULL;
+        } else {
+            if (!checkIfInt(splitArrayarguments[1])) {
+                throwError(NOT_AN_INT, stack[stack.size()-1]->runner);
+            }
+            int i = stoi(splitArrayarguments[1]);
+            if (i < 0) {
+                throwError(MUST_BE_POSITIVE, stack[stack.size()-1]->runner);
+            }
+            if (i >= arr->content.size()) {
+                throwError(ARRAY_OVERFLOW, stack[stack.size()-1]->runner);
+            }
+            val = arr->getFromIndex(i);
+        }
+    }
+    return val;
+}
+token* getResultFromString(string str) {
+    if (checkIfdouble(str)) {
+        return new token(VAL_DOUBLE, "", 0, stod(str));
+    } else if (checkIfSurroundedBy(str, '"')) {
+        return new token(VAL_STRING, "", 0, 0, trimString(str));
+    } else if (checkIfSurroundedBy(str, '@')) {
+        return new token(VAL_BOOL, "", 0, 0, "", getBooleanFromString(trimString(str)));
+    } else if (checkIfSurroundedBy(str, ':')) {
+        return new token(VAL_DOUBLE, "", 0, returnMath(str));
+    } else if (str == "true" || str == "false") {
+        return new token(VAL_BOOL, "", 0, 0, "", str[0] == 't' ? true : false);
+    } else {
+        if (str == "NULL") {
+            return new token(VAL_DOUBLE, "", 0, 0);
+        } else if (str == "PI") {
+            return new token(VAL_DOUBLE, "", 0, PI);
+        }
+        token* val = lookupVar(str);
+        if (!val) {
+            vector<string> splitArrayarguments = splitString(str, "#");
+            list* arr = lookupArr(splitArrayarguments[0]);
+            if (!arr) {
+                throwError(VAR_NOT_FOUND, stack[stack.size()-1]->runner);
+            }
+            if (!(splitArrayarguments.size() - 1)) {
+                return val;
+            } else {
+                token* val = getResultFromString(splitArrayarguments[1]);
+                if (val->type ^ VAL_DOUBLE) {
+                    throwError(NOT_AN_INT, stack[stack.size()-1]->runner);
+                } else if (val->returnDouble() != round(val->returnDouble())) {
+                    throwError(NOT_AN_INT, stack[stack.size()-1]->runner);
+                }
+                int i = val->returnDouble();
+                if (i < 0) {
+                    throwError(MUST_BE_POSITIVE, stack[stack.size()-1]->runner);
+                }
+                if (i >= arr->content.size()) {
+                    throwError(ARRAY_OVERFLOW, stack[stack.size()-1]->runner);
+                }
+                token* val1 = arr->getFromIndex(i);
+                if (!(val1->type ^ VAL_INTERGER)) {
+                    return new token(val1->type, "", val1->returnInt());
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    return new token(val1->type, "", 0, val1->returnDouble());
+                } else if (!(val1->type ^ VAL_STRING)) {
+                    return new token(val1->type, "", 0, 0, val1->returnString());
+                } else  if (!(val1->type ^ VAL_BOOL)) {
+                    return new token(val1->type, "", 0, 0, "", val1->returnBool());
+                }
+            }
+        } else if (!(val->type ^ VAL_INTERGER)) {
+            return new token(val->type, "", val->returnInt());
+        } else if (!(val->type ^ VAL_DOUBLE)) {
+            return new token(val->type, "", 0, val->returnDouble());
+        } else if (!(val->type ^ VAL_STRING)) {
+            return new token(val->type, "", 0, 0, val->returnString());
+        } else  if (!(val->type ^ VAL_BOOL)) {
+            return new token(val->type, "", 0, 0, "", val->returnBool());
+        }
+    }
 }
 bool parseLine (string l) {
     int location = stack[stack.size()-1]->runner;
@@ -751,11 +1037,33 @@ bool parseLine (string l) {
                 }
                 if (func->returnType ^ VAL_VOID) {
                     token* val = lookupVar(script[4]);
-                    if (!checkIfAlphaBetic(script[4])) {
-                        throwError(INVALID_VARIABLE_NAME, location);
-                    }
                     if (!val) {
-                        throwError(VAR_NOT_FOUND, location);
+                        val = getRefrenceFromString(script[4]);
+                        if (!val) {
+                            list* arr = lookupArr(script[4]);
+                            if (!arr) {
+                                throwError(VAR_NOT_FOUND, location);
+                            }
+                            if (!(func->returnType ^ VAL_ARRAY)) {
+                                list* returnArray = func->runcodeArr(location, parseToRawArgs(script[2]));
+                                arr->content.clear();
+                                for (int i = 0; i < returnArray->content.size(); i++) {
+                                    token* returnVal = returnArray->content[i];
+                                    if (!(returnVal->type ^ VAL_INTERGER)) {
+                                        arr->content.push_back(new token(returnVal->type, "", returnVal->returnInt()));
+                                    } else if (!(returnVal->type ^ VAL_DOUBLE)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, returnVal->returnDouble()));
+                                    } else if (!(returnVal->type ^ VAL_STRING)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, 0, returnVal->returnString()));
+                                    } else  if (!(returnVal->type ^ VAL_BOOL)) {
+                                        arr->content.push_back(new token(returnVal->type, "", 0, 0, "", returnVal->returnBool()));
+                                    }
+                                }
+                                return true;
+                            } else {
+                                throwError(VAR_NOT_FOUND, location);
+                            }
+                        }
                     }
                     if (script[3] != "TO") {
                         throwError(SYNTAX_ERROR, location);
@@ -808,10 +1116,33 @@ bool parseLine (string l) {
                         cout << PI;
                         break;
                     }
-                    token* val = lookupVar(args[i]);
+                    vector<string> splitArrayarguments = splitString(args[i], "#");
+                    list* arr = lookupArr(args[i]);
+                    if (arr) {
+                        if (!(splitArrayarguments.size() - 1)) {
+                            for (int i = 0; i < arr->content.size(); i++) {
+                                token* val1 = arr->getFromIndex(i);
+                                if (!(val1->type ^ VAL_INTERGER)) {
+                                    cout << val1->returnInt();
+                                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                                    cout << val1->returnDouble();
+                                } else if (!(val1->type ^ VAL_STRING)) {
+                                    cout << val1->returnString();
+                                } else  if (!(val1->type ^ VAL_BOOL)) {
+                                    cout << (val1->returnBool() ? "true" : "false");
+                                }
+                                if (i ^ arr->content.size()-1) {
+                                    cout << ",";
+                                }
+                            }
+                            continue;
+                        }
+                    }
+                    token* val = getResultFromString(args[i]);
                     if (!val) {
                         throwError(VAR_NOT_FOUND, location);
-                    } else if (!(val->type ^ VAL_INTERGER)) {
+                    }
+                    if (!(val->type ^ VAL_INTERGER)) {
                         cout << val->returnInt();
                     } else if (!(val->type ^ VAL_DOUBLE)) {
                         cout << val->returnDouble();
@@ -820,6 +1151,7 @@ bool parseLine (string l) {
                     } else if (!(val->type ^ VAL_BOOL)) {
                         cout << (val->returnBool() ? "true" : "false");
                     }
+                    delete(val);
                 }
             }
         } else if (script[1] == "PAUSE") {
@@ -845,78 +1177,290 @@ bool parseLine (string l) {
             if (script.size() > 4) {
                 throwError(TOO_MANY_ARGS, location);
             }
-            if (checkIfAlphaBetic(script[2])) {
-                token* val = lookupVar(script[2]);
-                if (!val) {
+            token* val = lookupVar(script[2]);
+            list* arr;
+            int indexArr = 0;
+            if (!val) {
+                vector<string> splitArrayarguments = splitString(script[2], "#");
+                arr = lookupArr(splitArrayarguments[0]);
+                if (arr) {
+                    token* val1 = getResultFromString(splitArrayarguments[1]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        indexArr = val1->returnInt();
+                        val = arr->getFromIndex(val1->returnInt(), false);
+                    } else if (!(val1->type ^ VAL_DOUBLE)) {
+                        indexArr = val1->returnDouble();
+                        val = arr->getFromIndex(val1->returnDouble(), false);
+                    } else {
+                        throwError(NOT_A_NUMBER, location);
+                    }
+                    if (!val) {
+                        val = new token(-1,"");
+                    }
+                    delete(val1);
+                } else {
                     throwError(VAR_NOT_FOUND, location);
-                } else if (!(val->type ^ VAL_INTERGER)) {
-                    if (checkIfSurroundedBy(script[3], ':')) {
-                        if (checkIfInt(script[3])) {
-                            if (strOverflow(script[3])) {
-                                throwError(INT32_OVERFLOW, location);
-                            }
-                        } else {
-                            *val->Vint = returnMath(script[3]);
-                        }
-                    } else if (checkIfAlphaBetic(script[3])) {
-                        token* val1 = lookupVar(script[3]);
-                        if (!val1) {
-                            throwError(VAR_NOT_FOUND, location);
-                        }
+                }
+            }
+            if (!(val->type ^ -1)) {
+                token* val1 = getResultFromString(script[3]);
+                if (!val1) {
+                    throwError(VAR_NOT_FOUND, location);
+                } else {
+                    arr->setIndex(indexArr, val1);
+                }
+            } else if (!(val->type ^ VAL_INTERGER)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
                         *val->Vint = val1->returnInt();
                     } else {
-                        throwError(VAR_NOT_FOUND, location);
+                        throwError(TYPE_MISMATCH, location);
                     }
-                } else if (!(val->type ^ VAL_DOUBLE)) {
-                    if (checkIfSurroundedBy(script[3], ':')) {
-                        if (checkIfInt(script[3])) {
-                            if (strOverflow(script[3])) {
-                                throwError(INT32_OVERFLOW, location);
-                            }
-                        } else {
-                            *val->Vdouble = returnMath(script[3]);
-                        }
-                    } else if (checkIfAlphaBetic(script[3])) {
-                        token* val1 = lookupVar(script[3]);
-                        if (!val1) {
-                            throwError(VAR_NOT_FOUND, location);
-                        }
+                    delete(val1);
+                } else {
+                    *val->Vint = val1->returnInt();
+                }
+            } else if (!(val->type ^ VAL_DOUBLE)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_DOUBLE)) {
                         *val->Vdouble = val1->returnDouble();
                     } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val->Vdouble = val1->returnDouble();
+                } else {
+                    throwError(TYPE_MISMATCH, location);
+                }
+            } else if (!(val->type ^ VAL_STRING)) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_STRING)) {
+                        val->Vstring = val1->returnString();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else {
+                    val->Vstring = val1->returnString();
+                }
+            } else if (!(val->type ^ VAL_BOOL)) {
+                if (script[3] == "true" || script[3] == "false") {
+                    *val->Vbool = script[3][0] == 't' ? true : false;
+                } else {
+                    token* val1 = lookupVar(script[3]);
+                    if (!val1) {
+                        val1 = getResultFromString(script[3]);
+                        if (!(val1->type ^ VAL_BOOL)) {
+                            *val->Vint = val1->returnBool();
+                        } else {
+                            throwError(TYPE_MISMATCH, location);
+                        }
+                        delete(val1);
+                    } else {
+                        *val->Vint = val1->returnInt();
+                    }
+                }
+            }
+        } else if (script[1] == "GET") {
+            if (script.size() > 6) {
+                throwError(TOO_MANY_ARGS, location);
+            } else if (script.size() < 6) {
+                throwError(TOO_FEW_ARGS, location);
+            }
+            token* val = lookupVar(script[2]);
+            if (script[4] != "TO") {
+                throwError(SYNTAX_ERROR, location);
+            }
+            if (!val) {
+                vector<string> splitArrayarguments = splitString(script[2], "#");
+                list* arr = lookupArr(splitArrayarguments[0]);
+                if (arr) {
+                    if (!(splitArrayarguments.size()-1)) {
+                        token* val1 = lookupVar(script[5]);
+                        if (!val1) {
+                            val1 = getRefrenceFromString(script[5]);
+                            if (!val1) {
+                                throwError(VAR_NOT_FOUND, location);
+                            }
+                        }
+                        if (script[3] == "SIZE") {
+                            if (!(val1->type ^ VAL_INTERGER)) {
+                                *val1->Vint = arr->content.size();
+                                return true;
+                            } else if (!(val1->type ^ VAL_DOUBLE)) {
+                                *val1->Vdouble = arr->content.size();
+                                return true;
+                            } else {
+                                throwError(TYPE_MISMATCH, location);
+                            }
+                        } else {
+                            throwError(SYNTAX_ERROR, location);
+                        }
+                    } else if (!checkIfInt(splitArrayarguments[1])) {
+                        throwError(NOT_AN_INT, location);
+                    } else {
+                        val = arr->getFromIndex(stoi(splitArrayarguments[1]));
+                    }
+                } else {
+                    throwError(VAR_NOT_FOUND, location);
+                }
+            }
+            if (script[3] == "SIZE") {
+                if (val->type ^ VAL_STRING) {
+                    throwError(TYPE_MISMATCH, location);
+                }
+                token* val1 = lookupVar(script[5]);
+                if (!val1) {
+                    val1 = getRefrenceFromString(script[5]);
+                    if (!val1) {
                         throwError(VAR_NOT_FOUND, location);
                     }
-                } else if (!(val->type ^ VAL_STRING)) {
-                    if (checkIfAlphaBetic(script[3])) {
-                        token* val1 = lookupVar(script[3]);
-                        if (!val1) {
-                            throwError(VAR_NOT_FOUND, location);
-                        }
-                        val->Vstring = val1->returnString();
-                    } else if (checkIfSurroundedBy(script[3], '"')) {
-                        val->Vstring = trimString(script[3]);
-                    } else {
-                        throwError(SYNTAX_ERROR, location);
+                }
+                if (!(val1->type ^ VAL_INTERGER)) {
+                    *val1->Vint = val->Vstring.size();
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val1->Vdouble = val->Vstring.size();
+                } else {
+                    throwError(TYPE_MISMATCH, location);
+                }
+            } else if (script[3] == "TYPE") {
+                token* val1 = lookupVar(script[5]);
+                if (!val1) {
+                    val1 = getRefrenceFromString(script[5]);
+                    if (!val1) {
+                        throwError(VAR_NOT_FOUND, location);
                     }
-                } else if (!(val->type ^ VAL_BOOL)) {
-                    if (script[3] == "true" || script[3] == "false") {
-                        *val->Vbool = script[3][0] == 't' ? true : false;
-                    } else if (checkIfAlphaBetic(script[3])) {
-                        token* val1 = lookupVar(script[3]);
-                        if (!val1) {
-                            throwError(VAR_NOT_FOUND, location);
-                        }
-                        *val->Vbool = val1->returnBool();
-                    } else if (checkIfSurroundedBy(script[3], '@')) {
-                        *val->Vbool = getBooleanFromString(trimString(script[3]));
-                    } else {
-                        throwError(SYNTAX_ERROR, location);
-                    }  
+                }
+                if (!(val1->type ^ VAL_INTERGER)) {
+                    *val1->Vint = val->type;
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val1->Vdouble = val->type;
+                } else {
+                    throwError(TYPE_MISMATCH, location);
                 }
             } else {
-                throwError(VAR_NOT_FOUND, location);
+                throwError(SYNTAX_ERROR, location);
+            }
+        } else if (script[1] == "LISTEN") {
+            if (script[2] != "TO") {
+                throwError(SYNTAX_ERROR, location);
+            }
+            token* val = lookupVar(script[3]);
+            list* arr;
+            int indexArr = 0;
+            if (!val) {
+                vector<string> splitArrayarguments = splitString(script[3], "#");
+                arr = lookupArr(splitArrayarguments[0]);
+                if (arr) {
+                    if (splitArrayarguments.size()-1) {
+                        token* val1 = getResultFromString(splitArrayarguments[1]);
+                        if (!(val1->type ^ VAL_INTERGER)) {
+                            indexArr = val1->returnInt();
+                            val = arr->getFromIndex(val1->returnInt(), false);
+                        } else if (!(val1->type ^ VAL_DOUBLE)) {
+                            indexArr = val1->returnDouble();
+                            val = arr->getFromIndex(val1->returnDouble(), false);
+                        } else {
+                            throwError(NOT_A_NUMBER, location);
+                        }
+                        if (!val) {
+                            val = new token(-1,"");
+                        }
+                        delete(val1);
+                    } else {
+                        val = new token(-2,"");
+                    }
+                } else {
+                    throwError(VAR_NOT_FOUND, location);
+                }
+            }
+            string input;
+            cin >> input;
+            if (!(val->type ^ -2)) {
+                delete(val);
+                vector<token*> vals = parseToRawArgs(input, false);
+                arr->content = vals;
+            } else if (!(val->type ^ -1)) {
+                delete(val);
+                token* val1 = getResultFromString(input);
+                if (!val1) {
+                    input = "\"" + input + "\"";
+                    val1 = getResultFromString(input);
+                    if (!val1) {
+                        throwError(VAR_NOT_FOUND, location);
+                    }
+                } else {
+                    arr->setIndex(indexArr, val1);
+                }
+            } else if (!(val->type ^ VAL_INTERGER)) {
+                token* val1 = lookupVar(input);
+                if (!val1) {
+                    val1 = getResultFromString(input);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        *val->Vint = val1->returnInt();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else {
+                    *val->Vint = val1->returnInt();
+                }
+            } else if (!(val->type ^ VAL_DOUBLE)) {
+                token* val1 = lookupVar(input);
+                if (!val1) {
+                    val1 = getResultFromString(input);
+                    if (!(val1->type ^ VAL_DOUBLE)) {
+                        *val->Vdouble = val1->returnDouble();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else if (!(val1->type ^ VAL_DOUBLE)) {
+                    *val->Vdouble = val1->returnDouble();
+                } else {
+                    throwError(TYPE_MISMATCH, location);
+                }
+            } else if (!(val->type ^ VAL_STRING)) {
+                input = "\"" + input + "\"";
+                token* val1 = lookupVar(input);
+                if (!val1) {
+                    val1 = getResultFromString(input);
+                    if (!(val1->type ^ VAL_STRING)) {
+                        val->Vstring = val1->returnString();
+                    } else {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    delete(val1);
+                } else {
+                    val->Vstring = val1->returnString();
+                }
+            } else if (!(val->type ^ VAL_BOOL)) {
+                if (input == "true" || input == "false") {
+                    *val->Vbool = input[0] == 't' ? true : false;
+                } else {
+                    token* val1 = lookupVar(input);
+                    if (!val1) {
+                        val1 = getResultFromString(input);
+                        if (!(val1->type ^ VAL_BOOL)) {
+                            *val->Vint = val1->returnBool();
+                        } else {
+                            throwError(TYPE_MISMATCH, location);
+                        }
+                        delete(val1);
+                    } else {
+                        *val->Vint = val1->returnInt();
+                    }
+                }
             }
         } else if (script[1] == "RETURN") {
-            if (stack.size() == 1) {
+            if (!(stack.size()-1)) {
                 throwError(SYNTAX_ERROR, location);
             }
             return false;
@@ -930,26 +1474,26 @@ bool parseLine (string l) {
             }
             if (checkIfAlphaBetic(script[2])) {
                 int value = 0;
-                if (checkIfInt(script[3])) {
-                    if (!strOverflow(script[3])) {
-                        value = stoi(script[3]);
-                    }
-                    else {
-                        throwError(INT32_OVERFLOW, location);
-                    }
-                } else if (checkIfSurroundedBy(script[3], ':')) {
-                    value = returnMath(script[3]);
-                } else if (checkIfAlphaBetic(script[3])) {
-                    token* val1 = lookupVar(script[3]);
-                    if (!val1) {
-                        throwError(VAR_NOT_FOUND, location);
-                    }
-                    if (val1->type ^ VAL_INTERGER) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        value = val1->returnInt();
+                    } else if (!(val1->type ^ VAL_DOUBLE)) {
+                        value = val1->returnDouble();
+                    } else {
                         throwError(TYPE_MISMATCH, location);
                     }
-                    value = val1->returnInt();
+                    delete(val1);
                 } else {
-                    throwError(INVALID_VARIABLE_NAME, location);
+                    if (val1->type ^ VAL_INTERGER && val1->type ^ VAL_DOUBLE) {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        value = val1->returnInt();
+                    } else {
+                        value = val1->returnDouble();
+                    }
                 }
                 stack[stack.size()-1]->stack.push_back(new token(VAL_INTERGER, script[2], value));
             } else {
@@ -961,21 +1505,26 @@ bool parseLine (string l) {
             }
             if (checkIfAlphaBetic(script[2])) {
                 double value = 0;
-                if (checkIfdouble(script[3])) {
-                    value = stod(script[3]);
-                } else if (checkIfSurroundedBy(script[3], ':')) {
-                    value = returnMath(script[3]);
-                } else if (checkIfAlphaBetic(script[3])) {
-                    token* val1 = lookupVar(script[3]);
-                    if (!val1) {
-                        throwError(VAR_NOT_FOUND, location);
-                    }
-                    if (val1->type ^ VAL_DOUBLE) {
+                token* val1 = lookupVar(script[3]);
+                if (!val1) {
+                    val1 = getResultFromString(script[3]);
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        value = val1->returnInt();
+                    } else if (!(val1->type ^ VAL_DOUBLE)) {
+                        value = val1->returnDouble();
+                    } else {
                         throwError(TYPE_MISMATCH, location);
                     }
-                    value = val1->returnDouble();
+                    delete(val1);
                 } else {
-                    throwError(INVALID_VARIABLE_NAME, location);
+                    if (val1->type ^ VAL_INTERGER && val1->type ^ VAL_DOUBLE) {
+                        throwError(TYPE_MISMATCH, location);
+                    }
+                    if (!(val1->type ^ VAL_INTERGER)) {
+                        value = val1->returnInt();
+                    } else {
+                        value = val1->returnDouble();
+                    }
                 }
                 stack[stack.size()-1]->stack.push_back(new token(VAL_DOUBLE, script[2], 0, value));
             } else {
@@ -989,17 +1538,9 @@ bool parseLine (string l) {
                 string value = "";
                 vector<string> args = splitString(script[3], ",");
                 for (int i = 0; i < args.size(); i++) {
-                    if (checkIfSurroundedBy(args[i], '"')) {
-                        value.append(trimString(args[i]));
-                    } else if (checkIfdouble(args[i])) {
-                        value.append(args[i]);
-                    } else if (checkIfSurroundedBy(args[i], ':')) {
-                        value.append(to_string(returnMath(args[i])));
-                    } else if (checkIfAlphaBetic(args[i])) {
-                        token* val1 = lookupVar(args[i]);
-                        if (!val1) {
-                            throwError(VAR_NOT_FOUND, location);
-                        }
+                    token* val1 = lookupVar(script[3]);
+                    if (!val1) {
+                        val1 = getResultFromString(script[3]);
                         if (!(val1->type ^ VAL_INTERGER)) {
                             value.append(to_string(val1->returnInt()));
                         } else if (!(val1->type ^ VAL_DOUBLE)) {
@@ -1007,10 +1548,23 @@ bool parseLine (string l) {
                         } else if (!(val1->type ^ VAL_STRING)) {
                             value.append(val1->returnString());
                         } else if (!(val1->type ^ VAL_BOOL)) {
-                            value.append(val1->returnBool() ? "true" : "false");
+                            value.append(to_string(val1->returnInt()));
+                        } else {
+                            throwError(TYPE_MISMATCH, location);
                         }
+                        delete(val1);
                     } else {
-                        throwError(INVALID_VARIABLE_NAME, location);
+                        if (!(val1->type ^ VAL_INTERGER)) {
+                            value.append(to_string(val1->returnInt()));
+                        } else if (!(val1->type ^ VAL_DOUBLE)) {
+                            value.append(to_string(val1->returnDouble()));
+                        } else if (!(val1->type ^ VAL_STRING)) {
+                            value.append(val1->returnString());
+                        } else if (!(val1->type ^ VAL_BOOL)) {
+                            value.append(to_string(val1->returnInt()));
+                        } else {
+                            throwError(TYPE_MISMATCH, location);
+                        }
                     }
                 }
                 stack[stack.size()-1]->stack.push_back(new token(VAL_STRING, script[2], 0, 0, value));
@@ -1025,9 +1579,26 @@ bool parseLine (string l) {
                 if (script[3] == "true" || script[3] == "false") {
                     stack[stack.size()-1]->stack.push_back(new token(VAL_BOOL, script[2], 0, 0, "", script[3][0] == 't'));
                 } else if (checkIfSurroundedBy(script[3], '@')) {
-                    stack[stack.size()-1]->stack.push_back(new token(VAL_BOOL, script[2], 0, 0, "", getBooleanFromString(trimString(script[2]))));
+                    stack[stack.size()-1]->stack.push_back(new token(VAL_BOOL, script[2], 0, 0, "", getBooleanFromString(trimString(script[3]))));
                 } else {
                     throwError(INVALID_BOOL, location);
+                }
+            } else {
+                throwError(INVALID_VARIABLE_NAME, location);
+            }
+        } else if (script[1] == "ARRAY") {
+            if (script.size() > 4) {
+                throwError(TOO_MANY_ARGS, location);
+            }
+            if (checkIfAlphaBetic(script[2])) {
+                stack[stack.size()-1]->arrays.push_back(new list(script[2]));
+                list* arr = lookupArr(script[2]);
+                vector<token*> arguments = parseToRawArgs(script[3], false);
+                int size = arguments.size();
+                if (arguments.size()) {
+                    for (int i = 0; i < arguments.size(); i++) {
+                        arr->content.push_back(arguments[i]);
+                    }
                 }
             } else {
                 throwError(INVALID_VARIABLE_NAME, location);
@@ -1052,12 +1623,22 @@ bool parseLine (string l) {
                             } else {
                                 token* val1 = lookupVar(script[4]);
                                 if (!val1) {
-                                    throwError(SYNTAX_ERROR, location);
-                                } else if (val1->type ^ VAL_BOOL) {
-                                    throwError(TYPE_MISMATCH, location);
-                                }
-                                if (val1->returnBool()) {
-                                    stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
+                                    val1 = getResultFromString(script[4]);
+                                    if (!(val1->type ^ VAL_BOOL)) {
+                                        if (val1->returnBool()) {
+                                            stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);    
+                                        }
+                                    } else {
+                                        throwError(TYPE_MISMATCH, location);
+                                    }
+                                    delete(val1);
+                                } else {
+                                    if (val1->type ^ VAL_BOOL) {
+                                        throwError(TYPE_MISMATCH, location);
+                                    }
+                                    if (val1->returnBool()) {
+                                        stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
+                                    }
                                 }
                             }
                         } else if (script[3] == "UNLESS") {
@@ -1069,31 +1650,24 @@ bool parseLine (string l) {
                             } else {
                                 token* val1 = lookupVar(script[4]);
                                 if (!val1) {
-                                    throwError(SYNTAX_ERROR, location);
-                                } else if (val1->type ^ VAL_BOOL) {
-                                    throwError(TYPE_MISMATCH, location);
-                                }
-                                if (val1->returnBool()) {
-                                    stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
-                                }
-                            }
-                        } else if (checkIfSurroundedBy(script[3], ':')) {
-                            if (checkIfSurroundedBy(script[4], '@')) {
-                                if (!getBooleanFromString(trimString(script[4]))) {
-                                    stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
-                                }
-                            } else {
-                                token* val1 = lookupVar(script[4]);
-                                if (!val1) {
-                                    throwError(SYNTAX_ERROR, location);
-                                } else if (val1->type ^ VAL_BOOL) {
-                                    throwError(TYPE_MISMATCH, location);
-                                }
-                                if (val1->returnBool()) {
-                                    stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
+                                    val1 = getResultFromString(script[4]);
+                                    if (!(val1->type ^ VAL_BOOL)) {
+                                        if (!val1->returnBool()) {
+                                            stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);    
+                                        }
+                                    } else {
+                                        throwError(TYPE_MISMATCH, location);
+                                    }
+                                    delete(val1);
+                                } else {
+                                    if (val1->type ^ VAL_BOOL) {
+                                        throwError(TYPE_MISMATCH, location);
+                                    }
+                                    if (!val1->returnBool()) {
+                                        stack[stack.size()-1]->runner = searchSkipLocation(trimString(script[2]), location);
+                                    }
                                 }
                             }
-                            return true;
                         } else {
                             throwError(SYNTAX_ERROR, location);
                         }
@@ -1133,7 +1707,6 @@ bool parseLine (string l) {
 //main
 int main(int argc, char* argv[]) {
     string content;
-    bool debug = false;
     if (!debug) {
         string filename = argv[1];
         for (int i = 2; i < argc; i++) {
@@ -1190,6 +1763,8 @@ int main(int argc, char* argv[]) {
                     latestReturnType = VAL_BOOL;
                 } else if (spl[2] == "VOID") {
                     latestReturnType = VAL_VOID;
+                } else if (spl[2] == "ARRAY") {
+                    latestReturnType = VAL_ARRAY;
                 } else {
                     throwError(SYNTAX_ERROR, i);
                 }
@@ -1214,8 +1789,13 @@ int main(int argc, char* argv[]) {
             foundTarget = -1;
         }
     }
+    int counter = 0;
+    int latest = 0;
     for (stack[stack.size()-1]->runner = 0; stack[stack.size()-1]->runner < mainScript.size() -1; stack[stack.size()-1]->runner++) {
+        counter++;
         mainScript[stack[stack.size()-1]->runner] = trimSpace(mainScript[stack[stack.size()-1]->runner]);
+        runner = stack[stack.size()-1]->runner;
         parseLine(mainScript[stack[stack.size()-1]->runner]);
+        latest = stack.size();
     }
 }

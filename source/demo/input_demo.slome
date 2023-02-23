@@ -1,0 +1,13 @@
+MAKE STRING name "";
+MAKE NUMBER age 0;
+MAKE ARRAY things;
+DO SAY "Please\senter\syour\sname:\s";
+DO LISTEN TO name;
+DO SAY "Please\senter\syour\sage:\s";
+DO LISTEN TO age;
+DO SAY "Please\senter\sthe\sthings\syou\slike\smost:\s";
+DO LISTEN TO things;
+DO SAY "Hello\s",name,"!\sYou\sare\s",age,"\syears\sold!\n";
+DO SAY "You\slike:\s",things,"\n";
+DO PAUSE;
+END 0;
